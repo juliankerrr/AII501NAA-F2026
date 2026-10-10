@@ -11,19 +11,29 @@ This folder contains the source code, tests, experiment data, documentation, and
 
 ## Setup
 
-Document the required language version, dependencies, and installation commands here.
+This basic implementation uses Python 3.10 or newer and has no third-party dependencies.
 
 ## Run
 
-Document the command used to run the Connect Four Monte Carlo Tree Search program here.
+From the `Activity2` directory, run:
+
+```bash
+PYTHONPATH=src python3 src/connect_four_mcts.py
+```
 
 ## Test
 
-Document the command used to run all tests here.
+From the `Activity2` directory, run:
+
+```bash
+python3 -m pytest tests
+```
+
+If `pytest` is not installed, run the module directly first; the source file includes a basic smoke test through its main entry point.
 
 ## Assumptions
 
-Record implementation assumptions, configuration choices, and any external resources here.
+The implementation uses a 6-by-7 board, alternating players represented by `1` and `2`, random playouts, and a configurable simulation count. A seed can be supplied for reproducible experiments.
 
 ## Assignment coverage
 
