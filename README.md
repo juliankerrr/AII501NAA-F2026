@@ -26,10 +26,10 @@ PYTHONPATH=src python3 src/connect_four_mcts.py
 From the `Activity2` directory, run:
 
 ```bash
-python3 -m pytest tests
+python3 tests/run_tests.py
 ```
 
-If `pytest` is not installed, run the module directly first; the source file includes a basic smoke test through its main entry point.
+The tests do not require third-party packages. If `pytest` is installed, they can also be run with `python3 -m pytest tests`.
 
 ## Assumptions
 

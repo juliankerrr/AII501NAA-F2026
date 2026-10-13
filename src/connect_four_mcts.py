@@ -1,10 +1,8 @@
-"""Basic Connect Four board and Monte Carlo Tree Search player."""
 
 from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass, field
 
 
 ROWS = 6
@@ -12,97 +10,222 @@ COLS = 7
 
 
 class Board:
+    
     def __init__(self, grid=None, player=1):
-        self.grid = [row[:] for row in grid] if grid else [[0] * COLS for _ in range(ROWS)]
+        
         self.player = player
+        if grid is None:
+            grid = []
+
+            for x in range(ROWS):
+                row = []
+                for y in range(COLS):
+                    row.append(0)
+                grid.append(row)
+
+        self.grid = grid
 
     def legal_moves(self):
-        return [column for column in range(COLS) if self.grid[0][column] == 0]
+        
+        legalmoves = []
+        for column in range(COLS):
+            if self.grid[0][column] == 0:
+                legalmoves.append(column)
+        return legalmoves
 
     def play(self, column):
         if column not in self.legal_moves():
-            raise ValueError("Column is full or invalid")
-        next_grid = [row[:] for row in self.grid]
-        for row in range(ROWS - 1, -1, -1):
-            if next_grid[row][column] == 0:
-                next_grid[row][column] = self.player
+            raise ValueError("Column is full, move is ineligable")
+
+        new_grid = []
+        for row in self.grid:
+            copied_row = []
+
+            for cell in row:
+                copied_row.append(cell)
+            new_grid.append(copied_row)
+
+
+        for row in range(ROWS -1, -1, -1):
+            if new_grid[row][column] == 0:
+                new_grid[row][column] = self.player
                 break
-        return Board(next_grid, 3 - self.player)
+
+        return Board(new_grid, 3 - self.player)
 
     def winner(self):
+
         for row in range(ROWS):
-            for col in range(COLS):
-                player = self.grid[row][col]
-                if not player:
-                    continue
-                for dr, dc in ((0, 1), (1, 0), (1, 1), (1, -1)):
-                    cells = []
-                    for offset in range(4):
-                        rr, cc = row + dr * offset, col + dc * offset
-                        if 0 <= rr < ROWS and 0 <= cc < COLS:
-                            cells.append(self.grid[rr][cc])
-                    if cells == [player] * 4:
-                        return player
+            for column in range(COLS - 3):
+                if (
+                    self.grid[row][column] 
+                == self.grid[row][column+1] 
+                == self.grid[row][column+2] 
+                ==self.grid[row][column+3]
+                != 0
+                ):
+                    return self.grid[row][column]
+
+        for row in range(ROWS-3):
+            for column in range(COLS):
+                if (
+                    self.grid[row][column] ==
+                    self.grid[row+1][column] ==
+                    self.grid[row+2][column] ==
+                    self.grid[row+3][column]
+                    != 0
+                    
+                ):
+                    return self.grid[row][column]
+
+        for row in range(ROWS-3):
+            for column in range(COLS-3):
+                if (
+                    self.grid[row][column] ==
+                    self.grid[row+1][column+1] ==
+                    self.grid[row+2][column+2] ==
+                    self.grid[row+3][column+3]
+                    !=0
+                ):
+                    return self.grid[row][column]
+
+        for row in range(ROWS-3):
+            for column in range(3, COLS):
+                if (
+                    self.grid[row][column] ==
+                    self.grid[row+1][column-1] ==
+                    self.grid[row+2][column-2] ==
+                    self.grid[row+3][column-3]
+                    != 0
+                ):
+                    return self.grid[row][column]
         return 0
-
+        
     def terminal(self):
-        return bool(self.winner()) or not self.legal_moves()
+        return self.winner()!=0 or not self.legal_moves()
 
-
-@dataclass
 class Node:
-    board: Board
-    parent: "Node | None" = None
-    move: int | None = None
-    children: list["Node"] = field(default_factory=list)
-    visits: int = 0
-    value: float = 0.0
+    def __init__(self, board, parent=None, move=None):
+        self.board = board
+        self.parent = parent
+        self.move = move
+        self.children = []
+        self.visits = 0
+        self.value = 0.0
 
-    def untried_moves(self):
-        used = {child.move for child in self.children}
-        return [move for move in self.board.legal_moves() if move not in used]
+    def untried_moves (self):
+        used_moves = []
+
+        for child in self.children:
+            used_moves.append(child.move)
+
+        moves = []
+
+        for move in self.board.legal_moves():
+            if move not in used_moves:
+                moves.append(move)
+
+        return moves
 
 
-def _select_child(node):
-    return max(
-        node.children,
-        key=lambda child: child.value / child.visits
-        + math.sqrt(2 * math.log(node.visits) / child.visits),
-    )
+def select_child(node):
+    best_child = None
+    best_score = float("-inf")
 
+    for child in node.children:
+        if child.visits == 0:
+            return child
 
-def _rollout(board, rng):
-    current = board
-    while not current.terminal():
-        current = current.play(rng.choice(current.legal_moves()))
-    winner = current.winner()
-    return 0.5 if winner == 0 else (1.0 if winner == board.player else 0.0)
+        average_value = child.value / child.visits
+        exploration = math.sqrt(
+            2 * math.log(node.visits) / child.visits
+        )
+        score = average_value + exploration
 
+        if score > best_score:
+            best_score = score
+            best_child = child
+    return best_child
+
+def rollout(board):
+    current_board = board
+
+    while not current_board.terminal():
+        moves = current_board.legal_moves()
+        move = random.choice(moves)
+        current_board = current_board.play(move)
+
+    return current_board.winner()
 
 def choose_move(board, simulations=100, seed=None):
-    """Return a move using a small, reproducible MCTS search."""
-    if board.terminal():
-        raise ValueError("Cannot choose a move from a terminal board")
-    rng = random.Random(seed)
-    root = Node(board)
+    if seed is not None:
+        random.seed(seed)
 
-    for _ in range(simulations):
+    root = Node(board)
+    original_player = board.player
+
+    for simulation in range(simulations):
         node = root
-        while not node.untried_moves() and node.children and not node.board.terminal():
-            node = _select_child(node)
+
+        #selection
+        while(
+            not node.untried_moves()
+            and node.children
+            and not node.board.terminal()
+        ):
+            node = select_child(node)
+
+        #xpansion
         if node.untried_moves() and not node.board.terminal():
-            move = rng.choice(node.untried_moves())
-            child = Node(node.board.play(move), node, move)
+            move = random.choice(node.untried_moves())
+            new_board = node.board.play(move)
+            child = Node(new_board, node, move)
             node.children.append(child)
             node = child
-        result = _rollout(node.board, rng)
-        while node:
+
+        #sim
+        result = rollout(node.board)
+
+        #backpropagation
+        while node is not None:
             node.visits += 1
-            node.value += result
+
+            if result == original_player:
+                node.value += 1
+
+            elif result == 0:
+                node.value += 0.5
+
             node = node.parent
 
-    return max(root.children, key=lambda child: child.visits).move
+    if not root.children:
+        raise ValueError("No move is available")
 
+    best_child = root.children[0]
+
+    for child in root.children:
+        if child.visits > best_child.visits:
+            best_child = child
+    return best_child.move
 
 if __name__ == "__main__":
-    print("Suggested move:", choose_move(Board(), simulations=100, seed=7))
+    simulation_counts = [10, 50, 100, 500]
+    seeds = [1, 2, 3, 4, 5]
+
+    print("simulations,seed,selected_move")
+
+    for simulations in simulation_counts:
+        for seed in seeds:
+            board = Board()
+            move = choose_move(
+                board,
+                simulations=simulations,
+                seed=seed
+            )
+
+            print(
+                simulations,
+                seed,
+                move,
+                sep=","
+            )
